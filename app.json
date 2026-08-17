@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "vonalkod",
+    "name": "Mentes",
     "slug": "vonalkod",
+    "scheme": "mentes",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,21 +11,53 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FBF7F0"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rolkadb.mentes"
     },
     "android": {
+      "package": "com.rolkadb.mentes",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#3D7A5A"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "A kamera a termékek vonalkódjának beolvasásához kell."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "A kamera az összetevőlista lefényképezéséhez kell.",
+          "photosPermission": "A galéria akkor kell, ha korábban készített képről olvasnád be az összetevőket."
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "50674ead-4069-4fb1-b200-8b3cd59f2382"
+      }
+    },
+    "owner": "rolkadb"
   }
 }
