@@ -65,6 +65,8 @@ describe('toProduct', () => {
       analysisTags: [],
       ingredientsText: null,
       ingredientsLang: null,
+      // Fordítás csak külön körben készül, az adatbázis válaszában sosincs.
+      translation: null,
     });
   });
 

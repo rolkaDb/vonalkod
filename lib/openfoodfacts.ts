@@ -93,6 +93,8 @@ export function toProduct(code: string, raw: Record<string, unknown>): Product {
     labelTags: stringArray(raw.labels_tags),
     analysisTags: stringArray(raw.ingredients_analysis_tags),
     ...pickIngredients(raw),
+    // A fordítás külön körben, csak akkor készül, ha a szöveget nem értjük.
+    translation: null,
   };
 }
 

@@ -60,6 +60,8 @@ function toProduct(raw: RawProduct): Product {
     analysisTags: [],
     ingredientsText: ingredientsOf(raw) || null,
     ingredientsLang: langOf(raw),
+    // A riport a nyers lefedettséget méri – gépi fordítás nélkül.
+    translation: null,
   };
 }
 

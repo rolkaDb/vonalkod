@@ -6,6 +6,7 @@ import {
   DietKey,
   Evidence,
   Finding,
+  FindingSource,
   Product,
   Profile,
   Verdict,
@@ -198,7 +199,16 @@ function evaluateFromAnalysis(product: Product, diet: DietKey): Finding {
 export function evaluateDiet(product: Product, diet: DietKey): Finding {
   const set = KEYWORDS[diet];
   const label = DIET_LABEL[diet];
-  const base = { diet, spans: [] as Evidence[], source: 'data' as const };
+
+  // Az összetevő-szöveg gépi fordításból származik-e. Csak azoknál az ágaknál
+  // számít, amelyek tényleg a szövegből dolgoznak: az OFF-címkék akkor is
+  // adatok maradnak, ha a szöveget közben lefordítottuk.
+  // A `?? null` nem díszítés: a korábbi verzióval mentett termékeknél ez a
+  // mező hiányzik, és a puszta `!== null` minden régi rekordot fordítottnak
+  // hinne.
+  const translated = (product.translation ?? null) !== null;
+  const textSource: FindingSource = translated ? 'translation' : 'data';
+  const base = { diet, spans: [] as Evidence[] };
 
   // 1. Gyártói címke a legerősebb jel – felülír mindent, amit az összetevő-
   //    szövegből kiolvasnánk (pl. „laktózmentes tej").
@@ -206,6 +216,7 @@ export function evaluateDiet(product: Product, diet: DietKey): Finding {
   if (freeLabel) {
     return {
       ...base,
+      source: 'data',
       verdict: 'safe',
       reason: `A gyártó ${label.free} termékként jelöli.`,
       evidence: [freeLabel],
@@ -221,30 +232,44 @@ export function evaluateDiet(product: Product, diet: DietKey): Finding {
 
   // 3. Deklarált allergén vagy egyértelmű összetevő.
   if (allergens.length > 0 || certain.length > 0) {
+    const fromText = certain.length > 0;
     return {
       ...base,
+      source: fromText ? textSource : 'data',
       verdict: 'unsafe',
-      reason:
-        certain.length > 0
-          ? 'Az összetevők között szerepel.'
-          : 'A gyártó allergénként tünteti fel.',
-      evidence: certain.length > 0 ? uniqueWords(certain) : allergens,
+      reason: fromText
+        ? translated
+          ? 'A lefordított összetevők között szerepel.'
+          : 'Az összetevők között szerepel.'
+        : 'A gyártó allergénként tünteti fel.',
+      evidence: fromText ? uniqueWords(certain) : allergens,
       spans: spansOf(certain),
     };
   }
 
   // 4. Nyomokban tartalmazhatja, vagy bizonytalan összetevő (zab, maláta).
+  //
+  //    A fordított szövegnél a „nyomokban tartalmazhat" rész külön mezőben jön:
+  //    ha egybe hagynánk az összetevőkkel, a 3. ág tiltásnak venné, holott csak
+  //    nyomnyi mennyiségről van szó.
   const traces = product.traceTags.filter((tag) => set.allergenTags.includes(tag));
   const uncertain = hits.filter((hit) => !hit.certain);
-  if (traces.length > 0 || uncertain.length > 0) {
+  const traceHits = findHits(product.translation?.traces ?? '', set);
+
+  if (traces.length > 0 || uncertain.length > 0 || traceHits.length > 0) {
+    const fromText = uncertain.length > 0 || traceHits.length > 0;
+    const words = uniqueWords([...uncertain, ...traceHits]);
     return {
       ...base,
+      source: fromText ? textSource : 'data',
       verdict: 'caution',
       reason:
-        traces.length > 0
+        traces.length > 0 || traceHits.length > 0
           ? 'Nyomokban tartalmazhatja.'
           : 'Bizonytalan összetevő – érdemes a csomagolást is elolvasni.',
-      evidence: uncertain.length > 0 ? uniqueWords(uncertain) : traces,
+      evidence: fromText ? words : traces,
+      // Csak a fő szövegben lévő találatokat emeljük ki – a nyomokban-rész
+      // külön mezőben van, oda ezek a pozíciók nem mutatnak.
       spans: spansOf(uncertain),
     };
   }
@@ -254,6 +279,7 @@ export function evaluateDiet(product: Product, diet: DietKey): Finding {
   if (!hasIngredients && product.allergenTags.length === 0) {
     return {
       ...base,
+      source: 'data',
       verdict: 'unknown',
       reason: 'Ehhez a termékhez nincs összetevő-adat az adatbázisban.',
       evidence: [],
@@ -266,6 +292,7 @@ export function evaluateDiet(product: Product, diet: DietKey): Finding {
   if (!canReadIngredients(product) && product.allergenTags.length === 0) {
     return {
       ...base,
+      source: 'data',
       verdict: 'unknown',
       reason: 'Az összetevők olyan nyelven vannak, amit nem tudunk megbízhatóan ellenőrizni.',
       evidence: [],
@@ -275,8 +302,11 @@ export function evaluateDiet(product: Product, diet: DietKey): Finding {
   // 7. Van adat, értjük is, és nem találtunk semmit.
   return {
     ...base,
+    source: textSource,
     verdict: 'safe',
-    reason: `Az összetevők között nem találtunk ${label.source}.`,
+    reason: translated
+      ? `A lefordított összetevők között nem találtunk ${label.source}.`
+      : `Az összetevők között nem találtunk ${label.source}.`,
     evidence: [],
   };
 }
@@ -347,6 +377,23 @@ export function applyNote(findings: Finding[], note: ProductNote | null): Findin
  * polcon a csomagoláson törvény szerint magyarul van az összetevőlista – épp
  * ezért ér többet ez a szöveg, mint az adatbázis vegyes nyelvű rekordja.
  */
+/**
+ * A gépi fordítást tesszük a szöveg helyére, hogy a szótár dolgozni tudjon
+ * rajta – a nyelvet magyarra állítjuk, mert innentől tényleg az.
+ *
+ * Az eredeti szöveget NEM dobjuk el: az a hívó `product` objektumában marad,
+ * így a felület mindkettőt meg tudja mutatni.
+ */
+export function applyTranslation(product: Product): Product {
+  const translation = product.translation ?? null;
+  if (translation === null) return product;
+  return {
+    ...product,
+    ingredientsText: translation.text,
+    ingredientsLang: 'hu',
+  };
+}
+
 export function effectiveProduct(
   product: Product | null,
   note: ProductNote | null,
@@ -354,19 +401,22 @@ export function effectiveProduct(
   const own = (note?.ingredients ?? '').trim();
   if (product === null && own.length === 0) return null;
 
-  const base: Product = product ?? {
-    code: note?.code ?? '',
-    name: null,
-    brand: null,
-    imageUrl: null,
-    quantity: null,
-    allergenTags: [],
-    traceTags: [],
-    labelTags: [],
-    analysisTags: [],
-    ingredientsText: null,
-    ingredientsLang: null,
-  };
+  const base: Product = product
+    ? applyTranslation(product)
+    : {
+        code: note?.code ?? '',
+        name: null,
+        brand: null,
+        imageUrl: null,
+        quantity: null,
+        allergenTags: [],
+        traceTags: [],
+        labelTags: [],
+        analysisTags: [],
+        ingredientsText: null,
+        ingredientsLang: null,
+        translation: null,
+      };
 
   if (own.length === 0) return base;
 
@@ -409,6 +459,14 @@ export function evaluateWithNote(
 /** Van-e olyan sor, ami a felhasználó saját jegyzetéből származik, nem adatból. */
 export function hasOwnFinding(findings: Finding[]): boolean {
   return findings.some((finding) => finding.source === 'note');
+}
+
+/**
+ * Van-e olyan sor, ami gépi fordításon alapul. A felületnek jeleznie kell:
+ * egy fordítási hiba ugyanúgy téves ítéletet okozhat, mint egy hiányos rekord.
+ */
+export function hasTranslatedFinding(findings: Finding[]): boolean {
+  return findings.some((finding) => finding.source === 'translation');
 }
 
 /** A kártya tetején megjelenő összesített ítélet: a legrosszabb egyedi eredmény. */

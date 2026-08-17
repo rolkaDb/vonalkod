@@ -22,6 +22,7 @@ import {
   effectiveProduct,
   evaluateWithNote,
   hasOwnFinding,
+  hasTranslatedFinding,
   overallVerdict,
   verdictMap,
 } from '../../lib/diet';
@@ -35,6 +36,7 @@ import { hasVerdict } from '../../lib/notes';
 import { fetchProduct } from '../../lib/openfoodfacts';
 import { useProfile } from '../../lib/profile';
 import { colors, fonts, radius, spacing, verdictStyles } from '../../lib/theme';
+import { needsTranslation, translateIngredients } from '../../lib/translate';
 import { Finding, Product, Verdict } from '../../lib/types';
 
 type State =
@@ -115,8 +117,27 @@ export default function ProductScreen() {
       const now = new Date().toISOString();
 
       if (result.status === 'found') {
-        setState({ kind: 'found', product: result.product, offline: false, fetchedAt: now });
-        putCached(code, { status: 'found', product: result.product, fetchedAt: now });
+        const found = result.product;
+        setState({ kind: 'found', product: found, offline: false, fetchedAt: now });
+        putCached(code, { status: 'found', product: found, fetchedAt: now });
+
+        // Ha az összetevők olyan nyelven vannak, amit a szótár nem ismer, a
+        // háttérben megkérjük a fordítást. A termék már a képernyőn van – ez
+        // csak pontosítja az ítéletet, nem várakoztat senkit a bolt közepén.
+        if (needsTranslation(found)) {
+          void translateIngredients(found).then((translated) => {
+            if (!active || translated.status !== 'ok') return;
+            const enriched: Product = { ...found, translation: translated.translation };
+            setState((current) =>
+              current.kind === 'found' && current.product.code === code
+                ? { ...current, product: enriched }
+                : current,
+            );
+            // A fordítást is elmentjük: ugyanaz a termék legközelebb már nem
+            // kér új AI-hívást.
+            putCached(code, { status: 'found', product: enriched, fetchedAt: now });
+          });
+        }
         return;
       }
 
@@ -218,18 +239,26 @@ export default function ProductScreen() {
   const hasOwnVerdict = hasVerdict(note);
   const emphasiseNote = missing && !hasOwnVerdict;
 
-  const subtitle =
+  const baseSubtitle =
     findings.length === 0
       ? 'Nincs bekapcsolt szűrő – kapcsolj be legalább egyet a Szűrők alatt.'
       : missing && !hasOwnVerdict
         ? 'Ez a termék nincs az adatbázisban.'
         : summarize(findings, overall);
 
+  // Ha az ítélet gépi fordításon áll, azt a kártya tetején is ki kell mondani –
+  // ugyanúgy, ahogy a saját jegyzetből származó ítéletnél tesszük.
+  const subtitle = hasTranslatedFinding(findings)
+    ? `${baseSubtitle} Gépi fordítás alapján.`
+    : baseSubtitle;
+
   const title = note?.name.trim() || product?.name || 'Névtelen termék';
   const meta = [product?.brand, product?.quantity].filter(Boolean).join(' · ') || code;
 
   // Az adatbázis rekordja + amit a felhasználó a csomagolásról beírt.
+  // A gépi fordítás ezen belül lép a nem értett szöveg helyére.
   const effective = effectiveProduct(product, note);
+  const translation = product?.translation ?? null;
   const ownIngredients = (note?.ingredients ?? '').trim().length > 0;
   const noIngredients = (effective?.ingredientsText ?? '').trim().length === 0;
 
@@ -317,9 +346,32 @@ export default function ProductScreen() {
       {effective?.ingredientsText && (
         <Card style={styles.gap}>
           <Text style={styles.sectionTitle}>
-            {ownIngredients ? 'ÖSSZETEVŐK — RÉSZBEN ÁLTALAD BEÍRVA' : 'ÖSSZETEVŐK'}
+            {ownIngredients
+              ? 'ÖSSZETEVŐK — RÉSZBEN ÁLTALAD BEÍRVA'
+              : translation
+                ? 'ÖSSZETEVŐK — GÉPI FORDÍTÁS'
+                : 'ÖSSZETEVŐK'}
           </Text>
+
+          {translation && (
+            <Text style={styles.translated}>
+              Az eredeti szöveget nem értettük, ezért gépi fordítást használtunk. A fordítás
+              hibázhat – érzékenység esetén a csomagolást is olvasd el.
+            </Text>
+          )}
+
           <IngredientsText text={effective.ingredientsText} highlights={highlights} />
+
+          {translation?.traces && (
+            <Text style={styles.body}>Nyomokban tartalmazhatja: {translation.traces}</Text>
+          )}
+
+          {translation && product?.ingredientsText && (
+            <>
+              <Text style={styles.sectionTitle}>EREDETI SZÖVEG</Text>
+              <Text style={styles.original}>{product.ingredientsText}</Text>
+            </>
+          )}
         </Card>
       )}
 
@@ -408,5 +460,7 @@ const styles = StyleSheet.create({
   gap: { gap: spacing.sm },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: colors.muted, letterSpacing: 0.6 },
   body: { fontSize: 14, lineHeight: 21, color: colors.text },
+  translated: { fontSize: 13, lineHeight: 19, color: colors.muted, fontStyle: 'italic' },
+  original: { fontSize: 13, lineHeight: 19, color: colors.muted },
   code: { fontSize: 16, color: colors.text, letterSpacing: 1.5 },
 });

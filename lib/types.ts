@@ -99,8 +99,12 @@ export type Verdict = 'safe' | 'caution' | 'unknown' | 'unsafe';
  * Honnan származik az ítélet. Ezt végig kell vezetni a felületig: adat és saját
  * feltételezés között egy pillantásból látszania kell a különbségnek, különben
  * hónapokkal később a felhasználó a saját tippjét nézi tényadatnak.
+ *
+ * A `translation` ugyanezért külön érték: gépi fordításon alapuló ítélet
+ * továbbra is az adatbázis szövegéből származik, de egy fordítási hiba
+ * beleeshet — a felhasználónak látnia kell, hogy nem az eredetit olvastuk.
  */
-export type FindingSource = 'data' | 'note';
+export type FindingSource = 'data' | 'note' | 'translation';
 
 /** Egy találat helye az EREDETI összetevő-szövegben, a kiemeléshez. */
 export type Evidence = {
@@ -119,6 +123,23 @@ export type Finding = {
   /** Csak összetevő-szövegből származó találatoknál van kitöltve. */
   spans: Evidence[];
   source: FindingSource;
+};
+
+/**
+ * Gépi fordítás az összetevő-szövegről, ha az eredetit nem értjük.
+ *
+ * A `traces` szándékosan külön mező: a „nyomokban tartalmazhat" rész más
+ * ítéletet érdemel (`caution`), mint amit a termék ténylegesen tartalmaz
+ * (`unsafe`). Ha egyben hagynánk, minden nyomnyi allergén tiltássá válna.
+ */
+export type Translation = {
+  /** Amit a termék ténylegesen tartalmaz, magyarra fordítva. */
+  text: string;
+  /** A „nyomokban tartalmazhat" rész magyarul, ha volt ilyen. */
+  traces: string | null;
+  /** Melyik nyelvről fordítottunk – `null`, ha az adatbázis sem jelölte. */
+  fromLang: string | null;
+  at: string;
 };
 
 export type Product = {
@@ -142,4 +163,9 @@ export type Product = {
    * a hallgatásunk ilyenkor nem bizonyíték, csak értetlenség.
    */
   ingredientsLang: string | null;
+  /**
+   * Gépi fordítás, ha az eredeti nyelvet nem értjük. `null`, amíg nem kértünk
+   * fordítást, vagy ha nem sikerült – ilyenkor marad a mai `unknown` ítélet.
+   */
+  translation: Translation | null;
 };

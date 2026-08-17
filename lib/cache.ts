@@ -1,4 +1,4 @@
-import { Product } from './types';
+import { Product, Translation } from './types';
 
 /**
  * A „nincs az adatbázisban" eredményt is eltesszük. Enélkül egy ismeretlen
@@ -37,6 +37,26 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+/**
+ * A mentett gépi fordítás. A korábbi verzióval mentett termékekben ez a mező
+ * nincs benne – ilyenkor `null`, és a termék úgy viselkedik, mint eddig.
+ */
+function parseTranslation(value: unknown): Translation | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const raw = value as Record<string, unknown>;
+
+  // Fordítás szöveg nélkül értelmetlen: inkább nincs, mint féllábon álljon.
+  const text = stringOrNull(raw.text);
+  if (text === null) return null;
+
+  return {
+    text,
+    traces: stringOrNull(raw.traces),
+    fromLang: stringOrNull(raw.fromLang),
+    at: stringOrNull(raw.at) ?? new Date().toISOString(),
+  };
+}
+
 /** Régi vagy sérült mentésből is használható terméket épít, vagy `null`-t ad. */
 function parseProduct(value: unknown): Product | null {
   if (typeof value !== 'object' || value === null) return null;
@@ -55,6 +75,7 @@ function parseProduct(value: unknown): Product | null {
     analysisTags: stringArray(raw.analysisTags),
     ingredientsLang: stringOrNull(raw.ingredientsLang),
     ingredientsText: stringOrNull(raw.ingredientsText),
+    translation: parseTranslation(raw.translation),
   };
 }
 

@@ -14,6 +14,7 @@ function product(code: string, overrides: Partial<Product> = {}): Product {
     analysisTags: [],
     ingredientsText: null,
     ingredientsLang: null,
+    translation: null,
     ...overrides,
   };
 }
@@ -110,6 +111,7 @@ describe('parseCache', () => {
       analysisTags: [],
       ingredientsText: null,
       ingredientsLang: null,
+      translation: null,
     });
   });
 });

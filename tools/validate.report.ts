@@ -91,6 +91,8 @@ function stripped(raw: RawProduct): Product {
     analysisTags: [],
     ingredientsText: ingredientsOf(raw),
     ingredientsLang: langOf(raw),
+    // A szótárat mérjük, nem a fordítót.
+    translation: null,
   };
 }
 

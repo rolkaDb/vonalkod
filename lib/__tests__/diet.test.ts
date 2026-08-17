@@ -5,6 +5,7 @@ import {
   evaluateDiet,
   evaluateWithNote,
   hasOwnFinding,
+  hasTranslatedFinding,
   overallVerdict,
   worse,
 } from '../diet';
@@ -24,6 +25,7 @@ function product(overrides: Partial<Product> = {}): Product {
     analysisTags: [],
     ingredientsText: null,
     ingredientsLang: 'hu',
+    translation: null,
     ...overrides,
   };
 }
@@ -774,3 +776,122 @@ describe('összesítés', () => {
   });
 });
 
+describe('gépi fordítás', () => {
+  /** Török – nincs a COVERED_LANGUAGES listán, ezért ma `unknown` lenne. */
+  const torok = 'İçindekiler: buğday unu, şeker, yağsız süt tozu.';
+
+  it('fordítás nélkül nem mond ítéletet a nem értett nyelvre', () => {
+    const findings = evaluateWithNote(
+      product({ ingredientsText: torok, ingredientsLang: 'tr' }),
+      null,
+      only('gluten', 'lactose'),
+    );
+    expect(findings.map((finding) => finding.verdict)).toEqual(['unknown', 'unknown']);
+  });
+
+  it('fordítás után a szótár megtalálja az allergéneket', () => {
+    const findings = evaluateWithNote(
+      product({
+        ingredientsText: torok,
+        ingredientsLang: 'tr',
+        translation: {
+          text: 'búzaliszt, cukor, sovány tejpor',
+          traces: null,
+          fromLang: 'tr',
+          at: '2026-08-14T08:00:00.000Z',
+        },
+      }),
+      null,
+      only('gluten', 'lactose'),
+    );
+    expect(findings.map((finding) => finding.verdict)).toEqual(['unsafe', 'unsafe']);
+  });
+
+  it('a fordításon alapuló ítélet forrása `translation`, nem `data`', () => {
+    const [finding] = evaluateWithNote(
+      product({
+        ingredientsText: torok,
+        ingredientsLang: 'tr',
+        translation: {
+          text: 'búzaliszt, cukor',
+          traces: null,
+          fromLang: 'tr',
+          at: '2026-08-14T08:00:00.000Z',
+        },
+      }),
+      null,
+      only('gluten'),
+    );
+    expect(finding.source).toBe('translation');
+    expect(hasTranslatedFinding([finding])).toBe(true);
+  });
+
+  it('a gyártói címke akkor is adat marad, ha közben fordítottunk', () => {
+    const [finding] = evaluateWithNote(
+      product({
+        ingredientsText: torok,
+        ingredientsLang: 'tr',
+        labelTags: ['en:gluten-free'],
+        translation: {
+          text: 'kukoricaliszt',
+          traces: null,
+          fromLang: 'tr',
+          at: '2026-08-14T08:00:00.000Z',
+        },
+      }),
+      null,
+      only('gluten'),
+    );
+    expect(finding.verdict).toBe('safe');
+    expect(finding.source).toBe('data');
+  });
+
+  it('a „nyomokban" rész figyelmeztetés lesz, nem tiltás', () => {
+    const [finding] = evaluateWithNote(
+      product({
+        ingredientsText: torok,
+        ingredientsLang: 'tr',
+        translation: {
+          text: 'kukoricaliszt, cukor',
+          traces: 'mogyorót és szezámot tartalmazhat',
+          fromLang: 'tr',
+          at: '2026-08-14T08:00:00.000Z',
+        },
+      }),
+      null,
+      only('nuts'),
+    );
+    expect(finding.verdict).toBe('caution');
+    expect(finding.reason).toBe('Nyomokban tartalmazhatja.');
+  });
+
+  it('a nyomokban-találat nem kap kiemelést a fő szövegben', () => {
+    const [finding] = evaluateWithNote(
+      product({
+        ingredientsText: torok,
+        ingredientsLang: 'tr',
+        translation: {
+          text: 'kukoricaliszt',
+          traces: 'mogyorót tartalmazhat',
+          fromLang: 'tr',
+          at: '2026-08-14T08:00:00.000Z',
+        },
+      }),
+      null,
+      only('nuts'),
+    );
+    // A pozíciók a fő szövegre mutatnának, a találat viszont a külön mezőben
+    // van – rossz helyen emelnénk ki.
+    expect(finding.spans).toEqual([]);
+  });
+
+  it('a régi mentésből hiányzó `translation` nem számít fordításnak', () => {
+    // A korábbi appverzió terméke: a mező nincs is rajta.
+    const regi = product({ ingredientsText: 'tejpor' });
+    delete (regi as Partial<Product>).translation;
+
+    const [finding] = evaluate(regi, only('lactose'));
+    expect(finding.verdict).toBe('unsafe');
+    expect(finding.source).toBe('data');
+  });
+});
