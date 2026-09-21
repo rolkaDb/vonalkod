@@ -22,7 +22,7 @@ import { effectiveProduct, evaluateWithNote, overallVerdict } from '../../lib/di
 import { Highlight } from '../../lib/highlight';
 import { useLibrary } from '../../lib/library';
 import { emptyNote } from '../../lib/notes';
-import { isOcrAvailable, recognizeText } from '../../lib/ocr';
+import { activeEngine, recognizeText } from '../../lib/ocr';
 import { useProfile } from '../../lib/profile';
 import { colors, radius, spacing, verdictStyles } from '../../lib/theme';
 
@@ -37,6 +37,9 @@ export default function IngredientsScreen() {
   const [text, setText] = useState(note?.ingredients ?? '');
   const [scanning, setScanning] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
+
+  // Melyik motor fut: az eszközön futó, ha van, különben a felhős.
+  const engine = activeEngine();
 
   /**
    * A felismert szöveget **hozzáfűzzük**, nem lecseréljük: hosszú összetevőlista
@@ -119,7 +122,7 @@ export default function IngredientsScreen() {
           listát — így pontosabb a felismerés. Hosszú listát több képből is összerakhatsz.
         </Text>
 
-        {isOcrAvailable() && (
+        {engine !== null && (
           <>
             <PrimaryButton
               label={scanning ? 'Felismerés…' : '📷  Összetevőlista fényképezése'}
@@ -183,8 +186,10 @@ export default function IngredientsScreen() {
           A szöveg és az ítélet a telefonodon marad.{' '}
           <Text style={styles.footerStrong}>A fényképfelismerés hibázhat</Text> — gyűrött vagy
           fényes címkén szavakat ronthat el, ezért mindig fusd át a felismert szöveget, mielőtt
-          mentenél. A feldolgozáshoz a kép egy külső szolgáltatóhoz kerül; nem tároljuk, és nincs
-          rajta személyes adat.
+          mentenél.{' '}
+          {engine === 'device'
+            ? 'A felismerés a telefonodon fut, a kép nem hagyja el a készüléket.'
+            : 'A feldolgozáshoz a kép egy külső szolgáltatóhoz kerül; nem tároljuk, és nincs rajta személyes adat.'}
         </Text>
         <View style={styles.spacer} />
       </ScrollView>
