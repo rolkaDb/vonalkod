@@ -8,8 +8,16 @@ import { Product, Translation } from './types';
  */
 const ENDPOINT = process.env.EXPO_PUBLIC_N8N_URL ?? '';
 
-/** Rövidebb, mint az OCR-é: ez csak egy szöveg, és a bolt közepén állunk. */
-const TIMEOUT_MS = 15_000;
+/**
+ * A fordítás nem blokkol: a termék már a képernyőn van, az ítélet utólag
+ * pontosodik. Ezért engedhetünk hosszabb határidőt, mint egy olyan hívásnál,
+ * amire a felhasználó vár.
+ *
+ * A mérés indokolja: a szolgáltatás modelltől és terheléstől függően 8 és 25
+ * másodperc között válaszol. 15 másodperccel a lassabb esetek elvesztek volna
+ * — és épp azok a hosszú, sok összetevős listák, ahol a legtöbb a tét.
+ */
+const TIMEOUT_MS = 40_000;
 
 export type TranslateResult =
   | { status: 'ok'; translation: Translation }
