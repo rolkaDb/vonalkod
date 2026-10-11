@@ -1,157 +1,178 @@
 # Mentes
 
-Vonalkód-olvasó app, ami megmondja, hogy egy élelmiszer megfelel-e a beállított
-étrendednek. Gluténérzékenységre, laktózintoleranciára és további 14 allergénre.
+A barcode scanner that tells you whether a food product fits your diet. Built for
+coeliac disease, lactose intolerance, and the 14 allergens the EU requires to be
+declared.
 
-Expo (React Native), Android és iOS. Az adatok az
-[OpenFoodFacts](https://world.openfoodfacts.org/) közösségi adatbázisából jönnek.
+Expo (React Native), Android and iOS. Product data comes from the
+[OpenFoodFacts](https://world.openfoodfacts.org/) community database.
 
-> **Ez nem orvosi eszköz.** A közösségi adatbázis hiányos és elavulhat.
-> Érzékenység esetén mindig olvasd el a csomagolást is.
+> **This is not a medical device.** The community database is incomplete and can
+> be out of date. If you have a sensitivity, always read the packaging too.
 
-## Mit tud
+## What it does
 
-- **Vonalkód-beolvasás** kamerával, vagy kézi beírás
-- **16 étrend** külön kapcsolható: a 14 EU-ban kötelezően jelölt allergén,
-  plusz vegán és vegetáriánus
-- **Szigorú mód**: a „nyomokban tartalmazhatja" is tiltásnak számít
-- **Saját jegyzet**: amit a polc előtt elolvastál a csomagolásról, felülírja
-  az adatbázist
-- **Összetevők beírása**: ha a termék nincs felvive, egyszer beírod, és az app
-  onnantól emlékszik rá
-- **Offline működés**: a beolvasott termékek gyorsítótárba kerülnek
-- **Előzmények és kedvencek**, kiemelt találatokkal az összetevő-szövegben
-- **OCR**: az összetevőlista lefotózható a csomagolásról
-- **Gépi fordítás** olyan nyelvű összetevőlistákhoz, amiket a szótár nem ismer
+- **Barcode scanning** with the camera, or type the code by hand
+- **16 diets**, each switched on separately: the 14 allergens the EU requires to
+  be declared, plus vegan and vegetarian
+- **Strict mode**: "may contain traces" counts as a block
+- **Personal notes**: what you read on the packaging in the shop overrides the
+  database
+- **Manual ingredients**: if a product is missing from the database, you enter
+  the ingredients once and the app remembers it
+- **Offline use**: scanned products are cached on the device
+- **History and favourites**, with matches highlighted inside the ingredient text
+- **OCR**: photograph the ingredient list straight off the packaging
+- **Machine translation** for ingredient lists in languages the dictionary does
+  not cover
 
-## Hogyan dönt
+## How it decides
 
-Ez a legfontosabb rész, és szándékosan konzervatív.
+This is the important part, and it is deliberately conservative.
 
-### Négy ítélet
+### Four verdicts
 
-| | Jelentés |
+| | Meaning |
 |---|---|
-| `safe` | Az adatok szerint nincs benne |
-| `caution` | Nyomokban tartalmazhatja, vagy bizonytalan összetevő (pl. zab) |
-| `unknown` | **Nincs elég adat.** Ez NEM azonos a „mentes"-sel |
-| `unsafe` | Tartalmazza |
+| `safe` | According to the data, it is not in there |
+| `caution` | May contain traces, or an uncertain ingredient (oats, for example) |
+| `unknown` | **Not enough data.** This is NOT the same as "free from" |
+| `unsafe` | It contains it |
 
-A súlyossági rangsorban az **`unknown` rosszabb, mint a `caution`**: érzékeny
-étrendnél a „nem tudjuk" veszélyesebb, mint egy jelölt, nyomnyi mennyiség.
+In the severity ranking, **`unknown` is worse than `caution`**: on a sensitive
+diet, "we do not know" is more dangerous than a declared trace amount.
 
-A szigorú mód a `caution`-ből `unsafe`-et csinál, de az `unknown`-t nem bántja —
-az adathiány továbbra is adathiány, nem tény.
+Strict mode turns `caution` into `unsafe`, but it leaves `unknown` alone. Missing
+data stays missing data; it does not become a fact.
 
-### A döntés sorrendje
+### The order of the decision
 
-1. **Gyártói mentes-címke** — a legerősebb jel, mindent felülír
-2. **Vegán/vegetáriánus**: az OpenFoodFacts saját besorolása
-3. **Deklarált allergén vagy egyértelmű összetevő** → `unsafe`
-4. **Nyomokban, vagy bizonytalan összetevő** → `caution`
-5. **Nincs összetevő-adat** → `unknown`
-6. **Van szöveg, de nem értjük a nyelvét** → `unknown`
-7. **Értjük, és nem találtunk semmit** → `safe`
+1. **Manufacturer's free-from label**: the strongest signal, it overrides
+   everything
+2. **Vegan / vegetarian**: OpenFoodFacts' own classification
+3. **Declared allergen or unambiguous ingredient** → `unsafe`
+4. **Traces, or an uncertain ingredient** → `caution`
+5. **No ingredient data at all** → `unknown`
+6. **There is text, but we do not understand the language** → `unknown`
+7. **We understand it and found nothing** → `safe`
 
-A 6-os pont a lényeg: ha nem értjük a nyelvet, **nem mondunk mentes-t**.
-A hallgatásunk nem bizonyíték, csak értetlenség.
+Step 6 is the point of the whole thing: if we do not understand the language, we
+**do not say it is free from**. Our silence is not evidence, only incomprehension.
 
-### Honnan jön az ítélet
+### Where a verdict comes from
 
-Minden megállapítás visz magával egy `source` mezőt — `data`, `note` vagy
-`translation` —, és ez végig látszik a felületen is. Adat és feltételezés között
-egy pillantásból látszania kell a különbségnek, különben hónapokkal később a
-felhasználó a saját tippjét nézi tényadatnak.
+Every finding carries a `source` field (`data`, `note` or `translation`), and
+that stays visible throughout the interface. The difference between data and
+assumption has to be obvious at a glance, otherwise months later the user is
+reading their own guess as if it were fact.
 
-### Tagadás-felismerés
+### Negation handling
 
-A „gluténmentes", „sans gluten", „glutenfrei" alakok kioltják a kulcsszót.
-Enélkül épp az ellenkezőjét állítanánk annak, ami a csomagoláson van.
+"Gluténmentes", "sans gluten" and "glutenfrei" cancel out the keyword they
+follow. Without this, the app would state the exact opposite of what is printed
+on the packaging.
 
-A szótár 14 nyelven ismer összetevőket (hu, en, de, fr, pl, ro, it, cs, sk, hr,
-sr, sl, bs, es) — mérés szerint a magyar polcon lévő termékek jelentős részénél
-az OpenFoodFactsben nem magyarul van a szöveg.
+The dictionary recognises ingredients in 14 languages (hu, en, de, fr, pl, ro,
+it, cs, sk, hr, sr, sl, bs, es). Measurement showed that for a large share of
+products on Hungarian shelves, the OpenFoodFacts text is not in Hungarian.
 
-## Indítás
+## Measuring it
+
+The dictionary is measured against real products, not only unit-tested. Two
+reports live under `tools/`:
+
+```bash
+npx jest --testMatch "**/tools/validate.report.ts"   # accuracy of the dictionary
+npx jest --testMatch "**/tools/coverage.report.ts"   # is there any data at all
+```
+
+The `validate` report isolates the dictionary: it strips the allergen labels out
+of a product and tries to decide from the ingredient text alone. The only truly
+harmful error is a **false "free from"**. A "no data" is admitted ignorance, not
+a mistake.
+
+Measuring this way surfaced defects that reasoning about the code would never
+have revealed. One example: the Hungarian word for carbon dioxide
+("szén-dioxid") contains the Hungarian word for nut ("dió"), so the app was
+flagging fizzy drinks as containing nuts. Every defect the measurement found
+became a regression test.
+
+## Running it
 
 ```bash
 npm install
 npx expo start
 ```
 
-Telefonon az Expo Go alkalmazással olvasd be a QR-kódot. A gépnek és a telefonnak
-ugyanazon a Wi-Fi-n kell lennie.
+Scan the QR code with Expo Go on your phone. The computer and the phone have to
+be on the same Wi-Fi network.
 
-### Környezeti változók
+### Environment variables
 
-Hozz létre egy `.env.local` fájlt a projekt gyökerében:
+Create a `.env.local` file in the project root:
 
 ```
 EXPO_PUBLIC_OCR_API_KEY=...
 EXPO_PUBLIC_N8N_URL=http://192.168.x.x:5678/webhook/osszetevok
 ```
 
-Mindkettő opcionális. Az `EXPO_PUBLIC_` előtagú változók **befordulnak a
-kliensbe**, tehát nem titkok — éles kiadásnál az OCR-t eszközön futó
-felismerésre (ML Kit) vagy saját proxyra kell cserélni.
+Both are optional. Variables prefixed with `EXPO_PUBLIC_` are **compiled into the
+client**, so they are not secrets. For a real release, OCR should move to
+on-device recognition (ML Kit) or behind a proxy of your own.
 
-Ha az `EXPO_PUBLIC_N8N_URL` hiányzik, a gépi fordítás egyszerűen kimarad.
+If `EXPO_PUBLIC_N8N_URL` is missing, machine translation is simply skipped.
 
-## Gépi fordítás
+## Machine translation
 
-Ha az összetevő-szöveg olyan nyelven van, amit a szótár nem ismer, az app egy
-[n8n](https://n8n.io/) workflow-t hív, ami lefordítja magyarra.
+When the ingredient text is in a language the dictionary does not cover, the app
+calls an [n8n](https://n8n.io/) workflow that translates it into Hungarian.
 
-**Az AI csak fordít.** Az ítéletet továbbra is a determinisztikus kulcsszó-motor
-hozza a lefordított szövegen. Ez nem stiláris döntés: így egy promptba ültetett
-támadás sem tud hamis „mentes" ítéletet előállítani — a támadó mondat lefordítva
-is csak szöveg marad, a döntést a kód hozza. Teszt őrzi.
+**The AI only translates.** The verdict is still produced by the deterministic
+keyword engine, running on the translated text. This is not a stylistic choice:
+it means an attack planted in a prompt cannot produce a false "free from"
+verdict. Translated or not, the attacker's sentence is still just text, and the
+code makes the decision. A test guards this.
 
-Amit **nem** csinálunk: ha egyáltalán nincs összetevő-adat, nem tippelünk a
-terméknévből. Az pontosan az a hallucináció lenne, ami ellen az app épül.
+What we deliberately do **not** do: if there is no ingredient data at all, we do
+not guess from the product name. That would be exactly the kind of hallucination
+this app is built against.
 
-A workflow a `webhook` végponton `{ code, lang, ingredientsText }` JSON-t vár,
-és `{ ok, translatedText, translatedTraces }` választ ad.
+The workflow expects `{ code, lang, ingredientsText }` as JSON on its `webhook`
+endpoint and answers with `{ ok, translatedText, translatedTraces }`. It lives in
+[rolkaDb/klodi-testek](https://github.com/rolkaDb/klodi-testek).
 
-## Tesztek
+## Tests
 
 ```bash
-npm test          # 202 egységteszt
+npm test          # 202 unit tests
 npm run typecheck
 ```
 
-A `tools/` alatt két riport fut valódi termékeken (nem egységtesztek, ezért van
-`.report.ts` végződésük):
-
-```bash
-npx jest --testMatch "**/tools/validate.report.ts"   # a szótár pontossága
-npx jest --testMatch "**/tools/coverage.report.ts"   # van-e egyáltalán adat
-```
-
-A `validate` riport a szótárat izolálja: kiveszi a termékből az allergén-címkéket,
-és csak az összetevő-szövegből próbál dönteni. Az egyetlen igazán káros hiba a
-**téves „mentes"** — a „nincs adat" bevallott tudatlanság, nem tévedés.
-
-## Felépítés
+## Layout
 
 ```
-app/          képernyők (Expo Router)
-components/   megjelenítő elemek
+app/          screens (Expo Router)
+components/   presentational components
 lib/
-  diet.ts        a döntési logika
-  keywords.ts    a szótár, 16 étrendhez
-  text.ts        tokenizálás, ékezet-normalizálás
+  diet.ts        the decision logic
+  keywords.ts    the dictionary, for 16 diets
+  text.ts        tokenisation, accent normalisation
   openfoodfacts.ts
-  translate.ts   n8n kliens a gépi fordításhoz
-  cache.ts       offline gyorsítótár
-tools/        mérőriportok valódi termékeken
+  translate.ts   n8n client for machine translation
+  cache.ts       offline cache
+tools/        measurement reports against real products
 ```
 
-## Ismert korlátok
+## Known limitations
 
-- A „non-dairy creamer" riaszt, mert a tagadás csak a közvetlenül utána álló
-  szót oltja ki. Ez tudatos: fölösleges riasztás vállalható, elmulasztott nem.
-- Nem latin írású (cirill, görög, héber, arab) összetevőlistákat a tokenizáló
-  nem lát — ezekre `unknown` jár, fordítás nélkül is.
-- A bolti saját márkák jelentős része nincs felvive az OpenFoodFactsbe.
-  Ilyenkor a saját jegyzet és a beírt összetevők segítenek.
+- "Non-dairy creamer" raises a flag, because negation only cancels the word
+  immediately after it. This is deliberate: a needless warning is acceptable, a
+  missed one is not.
+- The tokeniser does not see ingredient lists in non-Latin scripts (Cyrillic,
+  Greek, Hebrew, Arabic). Those get `unknown`, even without translation.
+- A large share of supermarket own-brand products is missing from OpenFoodFacts.
+  Personal notes and manually entered ingredients cover those cases.
+
+---
+
+*A magyar nyelvű változat: [README.hu.md](README.hu.md)*
